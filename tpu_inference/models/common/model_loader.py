@@ -125,6 +125,12 @@ def _get_nnx_model(
                                             rng,
                                             mesh,
                                             apply_to_abstract_model=False)
+
+        for i, (path, value) in enumerate(nnx.state(model).flat_state()):
+            if i == 991:
+                print(f"DEBUG: model.states[0][991] path is: {path}")
+                print(f"DEBUG: model.states[0][991] value is: {value}")
+
         return model
 
     if vllm_config.load_config.load_format == "dummy":
