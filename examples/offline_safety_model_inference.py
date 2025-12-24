@@ -127,13 +127,6 @@ def main(args: dict):
     # Create an LLM
     llm = LLM(**args)
 
-<<<<<<< HEAD
-=======
-    #TODO: Temporary patch as we haven't fully implemented the multimodal part of this model
-    #TODO: This might need to be True now
-    llm.llm_engine.processor.model_config.processor_return_mm_hashes = False
-
->>>>>>> c817b754 (Resolved sharding issues)
     sampling_params = llm.get_default_sampling_params()
     if max_tokens is not None:
         sampling_params.max_tokens = max_tokens
