@@ -60,6 +60,7 @@ class GroupCoordinator:
 def init_pp_distributed_environment(ip: str, rank: int, world_size: int,
                                     device: Any, need_pp: bool):
     global _PP
+    
     _PP = GroupCoordinator(rank, world_size)
 
     if need_pp:
