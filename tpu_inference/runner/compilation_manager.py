@@ -36,6 +36,8 @@ from tpu_inference.utils import device_array
 if TYPE_CHECKING:
     from tpu_inference.runner.tpu_runner import TPUModelRunner
 
+import torch
+
 logger = init_logger(__name__)
 
 # Constants for block bucketing in disaggregated utilities
@@ -53,11 +55,22 @@ class CompilationManager:
             jax.config.update("jax_compilation_cache_dir",
                               vllm_envs.VLLM_XLA_CACHE_PATH)
 
+    def _to_jnp_dtype(self, dtype):
+        if dtype == torch.bfloat16:
+            return jnp.bfloat16
+        elif dtype == torch.float16:
+            return jnp.float16
+        elif dtype == torch.float32:
+            return jnp.float32
+        else:
+            return dtype
+
     def _create_dummy_tensor(self,
                              shape: Tuple[int, ...],
                              dtype: Any,
                              sharding: Optional[NamedSharding] = None) -> Any:
         """Helper to create dummy tensors for precompilation."""
+        dtype = self._to_jnp_dtype(dtype)
         tensor = jnp.ones(shape, dtype=dtype)
         if sharding:
             return device_array(self.runner.mesh, tensor, sharding=sharding)
@@ -450,9 +463,8 @@ class CompilationManager:
                 source_paddings=self.runner.num_logits_paddings,
                 indices_paddings=self.runner.num_reqs_paddings,
                 hidden_dim=vocab_size,
-                input_sharding=NamedSharding(
-                    self.runner.mesh,
-                    PartitionSpec(None, ShardingAxisName.TENSOR)),
+                input_sharding=NamedSharding(self.runner.mesh,
+                                             PartitionSpec(None, "model")),
             )
             self._precompile_select_from_array_helper(
                 name=
@@ -460,9 +472,8 @@ class CompilationManager:
                 source_paddings=self.runner.num_logits_paddings,
                 indices_paddings=self.runner.num_logits_paddings,
                 hidden_dim=vocab_size,
-                input_sharding=NamedSharding(
-                    self.runner.mesh,
-                    PartitionSpec(None, ShardingAxisName.TENSOR)),
+                input_sharding=NamedSharding(self.runner.mesh,
+                                             PartitionSpec(None, "model")),
                 only_equal_paddings=True,
             )
 
@@ -598,9 +609,8 @@ class CompilationManager:
         vocab_size = self.runner.model_config.get_vocab_size()
         for num_logits in self.runner.num_logits_paddings:
             for num_reqs in self.runner.num_reqs_paddings:
-                sharding = NamedSharding(
-                    self.runner.mesh,
-                    PartitionSpec(None, ShardingAxisName.TENSOR))
+                sharding = NamedSharding(self.runner.mesh,
+                                         PartitionSpec(None, "model"))
                 target_probs = self._create_dummy_tensor(
                     (num_logits, vocab_size), jnp.bfloat16, sharding)
                 draft_token_ids = self._create_dummy_tensor((num_logits, ),
@@ -805,8 +815,7 @@ class CompilationManager:
 
             draft_hidden_states = self._create_dummy_tensor(
                 (num_tokens, draft_hidden_size), dtype,
-                NamedSharding(self.runner.mesh,
-                              PartitionSpec(None, ShardingAxisName.TENSOR)))
+                NamedSharding(self.runner.mesh, PartitionSpec(None, "model")))
             input_ids = self._create_dummy_tensor(
                 (num_tokens, ), jnp.int32,
                 NamedSharding(self.runner.mesh, PartitionSpec()))
