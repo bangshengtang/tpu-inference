@@ -72,6 +72,7 @@ upload_pipeline() {
     buildkite-agent pipeline upload .buildkite/pipeline_jax.yml
 
     # Upload JAX pipeline for v7
+    export TESTS_GROUP_LABEL="[jax] TPU7x Tests Group"
     export LABEL_PREFIX="TPU7x "
     export KEY_PREFIX="tpu7x_"
     export TPU_QUEUE_SINGLE="tpu_v7x_2_queue"
@@ -97,6 +98,7 @@ if [[ $BUILDKITE_PIPELINE_SLUG == "tpu-vllm-integration" ]]; then
     buildkite-agent pipeline upload .buildkite/pipeline_integration.yml
     
     # Upload JAX pipeline for v7
+    export TESTS_GROUP_LABEL="[jax] TPU7x Tests Group"
     export LABEL_PREFIX="TPU7x "
     export KEY_PREFIX="tpu7x_"
     export TPU_QUEUE_SINGLE="tpu_v7x_2_queue"
