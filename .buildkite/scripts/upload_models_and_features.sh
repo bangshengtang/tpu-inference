@@ -20,6 +20,9 @@ BUILDKITE_DIR=".buildkite"
 MODEL_LIST_KEY="model-list"
 FEATURE_LIST_KEY="feature-list"
 
+CURRENT_IMPL_TYPE="${MODEL_IMPL_TYPE:-auto}"
+echo "CURRENT_IMPL_TYPE = $CURRENT_IMPL_TYPE"
+
 declare -a TARGET_FOLDERS=(
     "quantization"
     "parallelism"
@@ -111,10 +114,12 @@ fi
 # --- Upload Dynamic Pipeline ---
 # Final Uploads (Two separate calls to handle variables) ---
 if [[ "${#pipeline_v6e_fragments[@]}" -gt 0 ]]; then
-  echo "--- Uploading TPU v6e Pipeline Group"
+  echo "--- Uploading TPU v6e Pipeline Group (${CURRENT_IMPL_TYPE})"
+  # Export v6e specific variables
+  export MODEL_IMPL_TYPE="${CURRENT_IMPL_TYPE}"
   {
     echo "steps:"
-    echo "  - group: \"TPU v6e nightly Tests\""
+    echo "  - group: \"TPU v6e nightly Tests [${CURRENT_IMPL_TYPE}]\""
     echo "    key: \"v6e-group\""
     echo "    steps:"
     printf "%s\n" "${pipeline_v6e_fragments[@]}" | sed 's/^/      /'
@@ -125,8 +130,9 @@ else
 fi
 
 if [[ "${#pipeline_v7x_fragments[@]}" -gt 0 ]]; then
-  echo "--- Uploading TPU v7x Pipeline Group"
-  # Export v7x specific variables (overwrites previous exports)
+  echo "--- Uploading TPU v7x Pipeline Group (${CURRENT_IMPL_TYPE})"
+  # Export v7x specific variables
+  export MODEL_IMPL_TYPE="${CURRENT_IMPL_TYPE}"
   export TPU_QUEUE_SINGLE="tpu_v7x_2_queue"
   export TPU_QUEUE_MULTI="tpu_v7x_8_queue"
   export IS_FOR_V7X="true"
@@ -135,7 +141,7 @@ if [[ "${#pipeline_v7x_fragments[@]}" -gt 0 ]]; then
 
   {
     echo "steps:"
-    echo "  - group: \"TPU v7x nightly Tests\""
+    echo "  - group: \"TPU v7x nightly Tests [${CURRENT_IMPL_TYPE}]\""
     echo "    key: \"v7x-group\""
     echo "    steps:"
     printf "%s\n" "${pipeline_v7x_fragments[@]}" | sed 's/^/      /'
