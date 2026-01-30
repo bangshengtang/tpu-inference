@@ -15,6 +15,8 @@
 from typing import Optional
 
 import jax
+import jax.numpy as jnp
+from flax import nnx
 
 from tpu_inference.layers.common.fused_moe import MoEBackend, moe_apply
 from tpu_inference.layers.common.quantization import unquantized as jax_common
@@ -23,12 +25,9 @@ from tpu_inference.layers.jax import JaxModule
 from tpu_inference.layers.jax.linear import JaxEinsum
 from tpu_inference.layers.jax.moe.moe import JaxMoE
 from tpu_inference.layers.jax.quantization import QuantizeMethodBase
-from tpu_inference.layers.jax.quantization.configs import (QuantFusedMoEConfig,
-                                                           QuantizationConfig)
-
-if TYPE_CHECKING:
-    from tpu_inference.layers.vllm.process_weights.fused_moe_weights import \
-        FusedMoEWeights
+from tpu_inference.layers.jax.quantization.configs import QuantizationConfig
+from tpu_inference.layers.vllm.process_weights.fused_moe_weights import \
+    FusedMoEWeights
 
 
 class UnquantizedLinearMethod(QuantizeMethodBase,
@@ -51,14 +50,13 @@ class UnquantizedLinearMethod(QuantizeMethodBase,
         return out
 
 
-import jax.numpy as jnp
-from flax import nnx
-
-
-class UnquantizedFusedMoEMethod(QuantizeMethodBase,
-                                jax_common.UnquantizedFusedMoEMethod):
+class UnquantizedFusedMoEMethod(QuantizeMethodBase):
     """Unquantized method for JAX FusedMoELayer.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.has_called = False
 
     def process_weights_after_loading(layer):
         if layer.moe_backend == MoEBackend.FUSED_MOE:
@@ -93,7 +91,18 @@ class UnquantizedFusedMoEMethod(QuantizeMethodBase,
             # TODO (jacobplatin): the current GMM kernel expects that w1/w2 have the second and third
             # dimensions transposed, but this is likely not optimal for DeepSeek, so we will
             # need to fix this in the future
-            pass
+            # fused_w = torch.cat([gate_w, up_w], dim=1)
+            # fused_s = torch.cat(
+            #     [gate_s, up_s], dim=1
+            # ) if gate_s is not None and up_s is not None else None
+
+            w1 = layer.kernel_up_proj_EDF.value
+            w3 = layer.kernel_gating_EDF.value
+            del layer.kernel_up_proj_EDF
+            del layer.kernel_gating_EDF
+            # stack the weights to create w13
+
+            # TODO (jacobplatin): replace this with the above once the weights are transposed
             # self.kernel_gating_upproj_EFD = create_param(
             #     rngs,
             #     shape=(E, D, 2 * F),
@@ -109,6 +118,10 @@ class UnquantizedFusedMoEMethod(QuantizeMethodBase,
 
     def apply_jax(self, layer: JaxModule, x: jax.Array) -> jax.Array:
         assert isinstance(layer, JaxMoE)
+
+        if not self.has_called:
+            self.has_called = True
+            self.process_weights_after_loading(layer)
 
         if layer.moe_backend == MoEBackend.VLLM_MOE:
             x_TD = jnp.asarray(x, layer.dtype)
@@ -143,6 +156,6 @@ class UnquantizedConfig(QuantizationConfig):
             return UnquantizedLinearMethod(linear_config)
         if isinstance(layer, JaxMoE):
             # TODO: pass a config
-            moe_config = QuantFusedMoEConfig()
+            # moe_config = QuantFusedMoEConfig()
             return UnquantizedFusedMoEMethod()
         return None
