@@ -777,7 +777,8 @@ class TPUModelRunner(KVConnectorModelRunnerMixin, LoRAModelRunnerMixin):
                      self.is_last_rank,
                  )
             if not self.is_last_rank:
-                assert isinstance(hidden_states, JaxIntermediateTensors)
+                if not isinstance(hidden_states, JaxIntermediateTensors):
+                    hidden_states = JaxIntermediateTensors({"hidden_states": hidden_states})
                 hidden_states.kv_connector_output = kv_connector_output
                 return hidden_states
             hidden_states = self._select_from_array_fn(hidden_states,
